@@ -45,21 +45,20 @@ carlitos_good_lifts.narrow <- melt(carlitos_good_lifts,
                                                     arm_features,
                                                     dumbbell_features,
                                                     forearm_features))
+carlitos_good_lifts.narrow$source <- 
+  ifelse(carlitos_good_lifts.narrow$variable %in% belt_features, "belt", 
+         ifelse(carlitos_good_lifts.narrow$variable %in% arm_features, "arm",
+                ifelse(carlitos_good_lifts.narrow$variable %in% dumbbell_features, "dumbbell",
+                       ifelse(carlitos_good_lifts.narrow$variable %in% forearm_features, "forearm", 
+                              "UNKNOWN"))))
+
+carlitos_good_lifts.narrow$variable <- 
+  gsub("_(belt|arm|dumbbell|forearm)", "", carlitos_good_lifts.narrow$variable)
 ```
 
 
 ```{r}
-g_belt <- ggplot(filter(carlitos_good_lifts.narrow, variable %in% belt_features), 
-                 aes(raw_timestamp, value, color=variable)) + 
-  geom_line() + xlab("belt")
-g_arm <- ggplot(filter(carlitos_good_lifts.narrow, variable %in% arm_features), 
-                aes(raw_timestamp, value, color=variable)) + 
-  geom_line() + xlab("arm")
-g_dumbbell <- ggplot(filter(carlitos_good_lifts.narrow, variable %in% dumbbell_features), 
-                     aes(raw_timestamp, value, color=variable)) + 
-  geom_line() + xlab("dumbbell")
-g_forearm <- ggplot(filter(carlitos_good_lifts.narrow, variable %in% forearm_features), 
-                    aes(raw_timestamp, value, color=variable)) + 
-  geom_line() + xlab("forearm")
-grid.arrange(g_belt, g_arm, g_dumbbell, g_forearm, ncol = 1)
+ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) + 
+  facet_wrap(~source, ncol = 1) +
+   geom_line()
 ```
