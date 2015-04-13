@@ -4,9 +4,12 @@ output: html_document
 ---
 
 ```{r}
+library(caret)
+library(plyr)
 library(dplyr)
 library(ggplot2)
 library(gridExtra)
+library(reshape2)
 ```
 
 ```{r}
@@ -17,7 +20,7 @@ testing <- read.csv("pml-testing.csv")
 ```{r}
 carlitos_good_lifts <- training %>% 
   filter(user_name == "carlitos" & classe == "A") %>%
-  mutate(raw_timestamp = ((raw_timestamp_part_1 - 1323084231) * 1000000 + raw_timestamp_part_2) / 1000000.0)
+  mutate(raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 1000000 + raw_timestamp_part_2) / 1000000.0)
 
 belt_features <- c("roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt",
                    "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", 
@@ -68,4 +71,40 @@ ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) +
   geom_line() + 
   scale_x_continuous(breaks = 1:40) + 
   geom_vline(data=window_markers, aes(xintercept=raw_timestamp), linetype="longdash", alpha = 0.3)
+```
+
+```{r}
+create_sliding_window_summary_fn <- function(window_size) {
+  return(function(df) {
+    df <- mutate(df, raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 1000000 + raw_timestamp_part_2) / 1000000.0)
+    sm = list()
+    for(x in seq(min(df$raw_timestamp), max(df$raw_timestamp), window_size)) {
+      s <- filter(df, raw_timestamp >= x & raw_timestamp < raw_timestamp + window_size)
+      ndf = data.frame(classe=first(df$classe))
+      for (f in c(belt_features, arm_features, dumbbell_features, forearm_features)) {
+        ndf[,paste("max", f, sep="_")] = max(s[,f])
+        ndf[,paste("min", f, sep="_")] = min(s[,f])
+        ndf[,paste("avg", f, sep="_")] = mean(s[,f])
+        ndf[,paste("var", f, sep="_")] = var(s[,f])
+      }
+      sm[[length(sm) + 1]] = ndf
+    }
+    sm_all <- rbind_all(sm)
+    print(dim(sm_all))
+    return(sm_all)
+  })
+}
+
+z = list()
+for (x in seq(0.5, 5.0, 0.5)) {
+  print(paste("Proccessing window size", x))
+  z[[length(z) + 1]] <- rbind_all(dlply(training, .(user_name, classe), create_sliding_window_summary_fn(x)))
+}
+```
+
+```{r}
+fit = list()
+for (x in z) {
+  fit[[length(fit) + 1]] <- train(classe ~ ., data = x, method = "rpart")
+}
 ```
