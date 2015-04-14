@@ -125,16 +125,16 @@ fitControlNn <- trainControl(method = "cv", number = 10)
 #                        trControl = fitControlNn, trace = FALSE, MaxNWts = 10000)
 # }
 
-my.grid <- expand.grid(.decay = c(0, 1e-4, 1e-01), .size = c(5, 10, 20))
+my.grid <- expand.grid(.decay = c(0), .size = c(350))
 
-fit_nn2 <- mclapply(seq_along(z), function(i) {
+fit_nn2 <- lapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting nn", names(z)[[i]]))
   fit_nn[[x]] <- train(classe ~ ., data = df, method = "nnet", 
                        trControl = fitControlNn, trace = FALSE, 
                        tuneGrid = my.grid,
-                       MaxNWts = 10000)
-}, mc.cores = 8)
+                       MaxNWts = 100000)
+})
 ```
 
 ```{r}
@@ -169,6 +169,8 @@ ggplot(accuracies, aes(window, accuracy)) + geom_point() +
 # 53 0.9952131   win-4-overlap-3.5
 # 54 0.9958045   win-1.5-overlap-1
 # 55 0.9964213   win-2.5-overlap-2
+
+# nnet size=20 accuracy ~60%
 ```
 
 ```{r}
