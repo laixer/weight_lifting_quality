@@ -120,8 +120,9 @@ fit_rf <- mclapply(seq_along(z), function(i) {
 
 ```{r}
 fitControlNn <- trainControl(method = "cv", number = 10)
-my.grid <- expand.grid(.decay = c(0), .size = c(20))
+my.grid <- expand.grid(.decay = c(0, 1e-4, 1e-1, 1), .size = c(15, 30, 50))
 
+set.seed(10482349)
 fit_nn <- mclapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting nn", names(z)[[i]]))
@@ -132,7 +133,7 @@ fit_nn <- mclapply(seq_along(z), function(i) {
                         trace = FALSE, 
                         tuneGrid = my.grid,
                         MaxNWts = 10000,
-                        preProcess = c("center", "scale")),
+                        preProcess = c("center", "scale", "pca")),
               window=names(z)[[i]]))
   }, mc.cores = 4)
 ```
@@ -172,6 +173,22 @@ ggplot(accuracies, aes(window, accuracy)) + geom_point() +
 # 55 0.9964213   win-2.5-overlap-2
 
 # nnet size=20 accuracy ~60%
+# nnet size=20 w/ feature scaling ~99.3
+#    50 0.9910141   win-2-overlap-1.5
+#    51 0.9916201   win-2.5-overlap-2
+#    52 0.9916201   win-4.5-overlap-4
+#    53 0.9928177   win-5-overlap-4.5
+#    54 0.9933841   win-3.5-overlap-3
+#    55 0.9933950   win-1-overlap-0.5
+# nnet size=20 w/ feature scaling, pca ~98.7
+# nnet size=50 w/ feature scaling, pca ~99.2
+# 50 0.9892210   win-3.5-overlap-3
+# 51 0.9898092   win-0.5-overlap-0
+# 52 0.9904082   win-2-overlap-1.5
+# 53 0.9904369   win-4.5-overlap-4
+# 54 0.9916202   win-1.5-overlap-1
+# 55 0.9921936   win-3-overlap-2.5
+
 ```
 
 ```{r}
