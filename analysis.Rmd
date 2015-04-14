@@ -9,6 +9,7 @@ library(plyr)
 library(dplyr)
 library(ggplot2)
 library(gridExtra)
+library(parallel)
 library(reshape2)
 ```
 
@@ -108,37 +109,33 @@ for (x in seq(0.5, 5.0, 0.5)) {
 ```
 
 ```{r}
-fitControl <- trainControl(method = "cv", number = 10)
-fit = list()
-for (x in names(z)) {
-  print(paste("Fitting", x))
-  fit[[x]] <- train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControl)
-}
+fitControlRf <- trainControl(method = "cv", number = 10)
+fit_rf <- mclapply(seq_along(z), function(i) {
+  df <- z[[i]]
+  print(paste("Fitting rf", names(z)[[i]]))
+  return(train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControlRf))
+}, mc.cores = 4)
 ```
 
 ```{r}
 fitControlNn <- trainControl(method = "cv", number = 10)
-# fit_nn = list()
-# for (x in names(z)) {
-#   print(paste("Fitting nn", x))
-#   fit_nn[[x]] <- train(classe ~ ., data = z[[x]], method = "nnet", 
-#                        trControl = fitControlNn, trace = FALSE, MaxNWts = 10000)
-# }
+my.grid <- expand.grid(.decay = c(0), .size = c(20))
 
-my.grid <- expand.grid(.decay = c(0), .size = c(350))
-
-fit_nn2 <- lapply(seq_along(z), function(i) {
+fit_nn <- mclapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting nn", names(z)[[i]]))
-  fit_nn[[x]] <- train(classe ~ ., data = df, method = "nnet", 
-                       trControl = fitControlNn, trace = FALSE, 
-                       tuneGrid = my.grid,
-                       MaxNWts = 100000)
-})
+  return(train(classe ~ ., 
+               data = df, 
+               method = "nnet", 
+               trControl = fitControlNn, 
+               trace = FALSE, 
+               tuneGrid = my.grid,
+               MaxNWts = 10000))
+  }, mc.cores = 4)
 ```
 
 ```{r}
-accuracies <- data.frame(sapply(fit, function(f) max(f$results$Accuracy)))
+accuracies <- data.frame(sapply(fit_rf, function(f) max(f$results$Accuracy)))
 accuracies$window <- rownames(accuracies)
 names(accuracies)[[1]] <- "accuracy"
 
@@ -174,7 +171,7 @@ ggplot(accuracies, aes(window, accuracy)) + geom_point() +
 ```
 
 ```{r}
-accuracies <- data.frame(sapply(fit_nn2, function(f) max(f$results$Accuracy, na.rm = TRUE)))
+accuracies <- data.frame(sapply(fit_nn, function(f) max(f$results$Accuracy, na.rm = TRUE)))
 accuracies$window <- rownames(accuracies)
 names(accuracies)[[1]] <- "accuracy"
 
