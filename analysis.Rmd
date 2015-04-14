@@ -110,12 +110,16 @@ for (x in seq(0.5, 5.0, 0.5)) {
 
 ```{r}
 fitControlRf <- trainControl(method = "cv", number = 10)
+set.seed(94610348)
 fit_rf <- mclapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting rf", names(z)[[i]]))
-  return(list(fit=train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControlRf),
+  return(list(fit=train(classe ~ .,
+                        data = df,
+                        method = "rf",
+                        trControl = fitControlRf),
               window=names(z)[[i]]))
-}, mc.cores = 4)
+}, mc.cores = 8)
 ```
 
 ```{r}
@@ -135,7 +139,7 @@ fit_nn <- mclapply(seq_along(z), function(i) {
                         MaxNWts = 10000,
                         preProcess = c("center", "scale", "pca")),
               window=names(z)[[i]]))
-  }, mc.cores = 4)
+  }, mc.cores = 8)
 ```
 
 ```{r}
