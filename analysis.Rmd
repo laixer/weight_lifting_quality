@@ -74,11 +74,11 @@ ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) +
 ```
 
 ```{r}
-create_sliding_window_summary_fn <- function(window_size) {
+create_sliding_window_summary_fn <- function(window_size, overlap) {
   return(function(df) {
     df <- mutate(df, raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 1000000 + raw_timestamp_part_2) / 1000000.0)
     sm = list()
-    for(x in seq(min(df$raw_timestamp), max(df$raw_timestamp), window_size)) {
+    for(x in seq(min(df$raw_timestamp), max(df$raw_timestamp), window_size - overlap)) {
       s <- filter(df, raw_timestamp >= x & raw_timestamp < raw_timestamp + window_size)
       ndf = data.frame(classe=first(df$classe))
       for (f in c(belt_features, arm_features, dumbbell_features, forearm_features)) {
@@ -97,14 +97,85 @@ create_sliding_window_summary_fn <- function(window_size) {
 
 z = list()
 for (x in seq(0.5, 5.0, 0.5)) {
-  print(paste("Proccessing window size", x))
-  z[[length(z) + 1]] <- rbind_all(dlply(training, .(user_name, classe), create_sliding_window_summary_fn(x)))
+  for (overlap in seq(0, x - 0.5, 0.5)) {
+    print(paste("Proccessing window size", x, "overlap", overlap))
+    z[[paste("win", x, "overlap", overlap, sep = "-")]] <- 
+      rbind_all(dlply(training, 
+                      .(user_name, classe), 
+                      create_sliding_window_summary_fn(x, overlap)))
+  }
 }
 ```
 
 ```{r}
+fitControl <- trainControl(method = "cv", number = 10)
 fit = list()
-for (x in z) {
-  fit[[length(fit) + 1]] <- train(classe ~ ., data = x, method = "rpart")
+for (x in names(z)) {
+  print(paste("Fitting", x))
+  fit[[x]] <- train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControl)
 }
+```
+
+```{r}
+fitControlNn <- trainControl(method = "cv", number = 10)
+# fit_nn = list()
+# for (x in names(z)) {
+#   print(paste("Fitting nn", x))
+#   fit_nn[[x]] <- train(classe ~ ., data = z[[x]], method = "nnet", 
+#                        trControl = fitControlNn, trace = FALSE, MaxNWts = 10000)
+# }
+
+my.grid <- expand.grid(.decay = c(0, 1e-4, 1e-01), .size = c(5, 10, 20))
+
+fit_nn2 <- mclapply(seq_along(z), function(i) {
+  df <- z[[i]]
+  print(paste("Fitting nn", names(z)[[i]]))
+  fit_nn[[x]] <- train(classe ~ ., data = df, method = "nnet", 
+                       trControl = fitControlNn, trace = FALSE, 
+                       tuneGrid = my.grid,
+                       MaxNWts = 10000)
+}, mc.cores = 8)
+```
+
+```{r}
+accuracies <- data.frame(sapply(fit, function(f) max(f$results$Accuracy)))
+accuracies$window <- rownames(accuracies)
+names(accuracies)[[1]] <- "accuracy"
+
+ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# resampling
+# 1.5o1
+# 3.5o5 (best) ~75
+# 3.0o0
+# 4.5o1.5
+# 4.5o3
+# 4.5o4
+# 5.0o2
+
+# k-fold cross-validation
+# 3.5o0.5
+# 3.0o0
+# 4.0o1 (best) ~78
+# 5.0o2
+
+# rf
+# 47 0.9916235   win-4.5-overlap-4
+# 48 0.9922150   win-0.5-overlap-0
+# 49 0.9940295   win-3-overlap-2.5
+# 50 0.9940401   win-3.5-overlap-3
+# 51 0.9951915   win-5-overlap-4.5
+# 52 0.9952024   win-1-overlap-0.5
+# 53 0.9952131   win-4-overlap-3.5
+# 54 0.9958045   win-1.5-overlap-1
+# 55 0.9964213   win-2.5-overlap-2
+```
+
+```{r}
+accuracies <- data.frame(sapply(fit_nn2, function(f) max(f$results$Accuracy, na.rm = TRUE)))
+accuracies$window <- rownames(accuracies)
+names(accuracies)[[1]] <- "accuracy"
+
+ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
