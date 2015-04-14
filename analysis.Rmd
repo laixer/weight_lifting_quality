@@ -113,7 +113,8 @@ fitControlRf <- trainControl(method = "cv", number = 10)
 fit_rf <- mclapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting rf", names(z)[[i]]))
-  return(train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControlRf))
+  return(list(fit=train(classe ~ ., data = z[[x]], method = "rf", trControl = fitControlRf),
+              window=names(z)[[i]]))
 }, mc.cores = 4)
 ```
 
@@ -124,20 +125,23 @@ my.grid <- expand.grid(.decay = c(0), .size = c(20))
 fit_nn <- mclapply(seq_along(z), function(i) {
   df <- z[[i]]
   print(paste("Fitting nn", names(z)[[i]]))
-  return(train(classe ~ ., 
-               data = df, 
-               method = "nnet", 
-               trControl = fitControlNn, 
-               trace = FALSE, 
-               tuneGrid = my.grid,
-               MaxNWts = 10000))
+  return(list(fit=train(classe ~ ., 
+                        data = df, 
+                        method = "nnet", 
+                        trControl = fitControlNn, 
+                        trace = FALSE, 
+                        tuneGrid = my.grid,
+                        MaxNWts = 10000,
+                        preProcess = c("center", "scale")),
+              window=names(z)[[i]]))
   }, mc.cores = 4)
 ```
 
 ```{r}
-accuracies <- data.frame(sapply(fit_rf, function(f) max(f$results$Accuracy)))
-accuracies$window <- rownames(accuracies)
+accuracies <- data.frame(sapply(fit_rf, function(f) max(f$fit$results$Accuracy)))
+accuracies$window <- sapply(fit_rf, function(f) f$window)
 names(accuracies)[[1]] <- "accuracy"
+accuracies <- arrange(accuracies, accuracy)
 
 ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -171,9 +175,10 @@ ggplot(accuracies, aes(window, accuracy)) + geom_point() +
 ```
 
 ```{r}
-accuracies <- data.frame(sapply(fit_nn, function(f) max(f$results$Accuracy, na.rm = TRUE)))
-accuracies$window <- rownames(accuracies)
+accuracies <- data.frame(sapply(fit_nn, function(f) max(f$fit$results$Accuracy, na.rm = TRUE)))
+accuracies$window <- sapply(fit_rf, function(f) f$window)
 names(accuracies)[[1]] <- "accuracy"
+accuracies <- arrange(accuracies, accuracy)
 
 ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
