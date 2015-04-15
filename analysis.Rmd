@@ -75,20 +75,24 @@ ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) +
 ```
 
 ```{r}
+summarize_window <- function(df) {
+  ndf = data.frame(classe=first(df$classe))
+  for (f in c(belt_features, arm_features, dumbbell_features, forearm_features)) {
+    ndf[,paste("max", f, sep="_")] <- max(df[,f])
+    ndf[,paste("min", f, sep="_")] <- min(df[,f])
+    ndf[,paste("avg", f, sep="_")] <- mean(df[,f])
+    #ndf[,paste("var", f, sep="_")] <- var(df[,f])
+  }
+  return(ndf)
+}
+
 create_sliding_window_summary_fn <- function(window_size, overlap) {
   return(function(df) {
     df <- mutate(df, raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 1000000 + raw_timestamp_part_2) / 1000000.0)
     sm = list()
     for(x in seq(min(df$raw_timestamp), max(df$raw_timestamp), window_size - overlap)) {
       s <- filter(df, raw_timestamp >= x & raw_timestamp < raw_timestamp + window_size)
-      ndf = data.frame(classe=first(df$classe))
-      for (f in c(belt_features, arm_features, dumbbell_features, forearm_features)) {
-        ndf[,paste("max", f, sep="_")] <- max(s[,f])
-        ndf[,paste("min", f, sep="_")] <- min(s[,f])
-        ndf[,paste("avg", f, sep="_")] <- mean(s[,f])
-        ndf[,paste("var", f, sep="_")] <- var(s[,f])
-      }
-      sm[[length(sm) + 1]] = ndf
+      sm[[length(sm) + 1]] = summarize_window(s)
     }
     sm_all <- rbind_all(sm)
     print(dim(sm_all))
@@ -168,4 +172,18 @@ grid.arrange(g1, g2, ncol = 1)
 
 ```{r}
 model_fit <- fit_rf[lapply(fit_rf, function(fit) fit$window == "win-2.0-overlap-1.5") == TRUE][[1]]$fit
+
+testing$classe = "U"
+#proccess_fn <- create_sliding_window_summary_fn(2.0, 1.5)
+pred <- sapply(1:20, function(t) predict(model_fit, newdata=summarize_window(testing[t,])))
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
 ```
