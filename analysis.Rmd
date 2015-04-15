@@ -11,6 +11,8 @@ library(ggplot2)
 library(gridExtra)
 library(parallel)
 library(reshape2)
+library(doMC)
+registerDoMC(cores = 4)
 ```
 
 ```{r}
@@ -103,7 +105,7 @@ fit_rf <- train(classe ~ .,
 
 ```{r}
 fit_control_nn <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
-tune_grid_nn <- expand.grid(.decay = c(0, 1e-4, 1e-1, 1), .size = c(50))
+tune_grid_nn <- expand.grid(.decay = c(0), .size = c(200))
 
 set.seed(10482349)
 fit_nn <- train(classe ~ ., 
@@ -133,20 +135,50 @@ fit_nn <- train(classe ~ .,
 ```
 
 ```{r}
-# TODO(laixer): Try SVM
+fit_control_svm <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
+tune_grid_svm <- expand.grid(.sigma = 0.01263598, .C = c(1, 10, 100))
 
-# model_fit <- fit_rf[lapply(fit_rf, function(fit) fit$window == "win-2.0-overlap-1.5") == TRUE][[1]]$fit
-# 
-# testing$classe = "U"
-# pred <- sapply(1:20, function(t) predict(model_fit, newdata=summarize_window(testing[t,])))
-# 
-# pml_write_files = function(x){
-#   n = length(x)
-#   for(i in 1:n){
-#     filename = paste0("problem_id_",i,".txt")
-#     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
-#   }
-# }
-# 
-# pml_write_files(pred)
+set.seed(10482349)
+fit_svm <- train(classe ~ ., 
+                data = extract_features(training), 
+                method = "svmRadial", 
+                trControl = fit_control_svm, 
+                tuneGrid = tune_grid_svm,
+                trace = FALSE, 
+                preProcess = c("center", "scale"))
+```
+
+```{r}
+predict_rf <- predict(fit_rf, newdata=training)
+predict_nn <- predict(fit_nn, newdata=training)
+predict_svm <- predict(fit_svm, newdata=training)
+combined_training <- data.frame(classe=training$classe, 
+                                classe_rf=predict_rf,
+                                classe_nn=predict_nn,
+                                classe_svm=predict_svm)
+combined_fit <- train(classe ~ ., data = combined_training, method = "rf")
+
+```
+
+```{r}
+testing$classe = "U"
+test_predict_rf <- predict(fit_rf, newdata=testing)
+test_predict_nn <- predict(fit_nn, newdata=testing)
+test_predict_svm <- predict(fit_svm, newdata=testing)
+combined_test <- data.frame(classe_rf=test_predict_rf,
+                            classe_nn=test_predict_nn,
+                            classe_svm=test_predict_svm)
+predict_final <- predict(combined_fit, newdata=combined_test)
+```
+
+```{r}
+pml_write_files = function(x){
+   n = length(x)   
+   for(i in 1:n){
+     filename = paste0("problem_id_",i,".txt")
+     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+   }
+}
+ 
+pml_write_files(predict_final)
 ```
