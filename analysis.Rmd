@@ -83,10 +83,10 @@ create_sliding_window_summary_fn <- function(window_size, overlap) {
       s <- filter(df, raw_timestamp >= x & raw_timestamp < raw_timestamp + window_size)
       ndf = data.frame(classe=first(df$classe))
       for (f in c(belt_features, arm_features, dumbbell_features, forearm_features)) {
-        ndf[,paste("max", f, sep="_")] = max(s[,f])
-        ndf[,paste("min", f, sep="_")] = min(s[,f])
-        ndf[,paste("avg", f, sep="_")] = mean(s[,f])
-        ndf[,paste("var", f, sep="_")] = var(s[,f])
+        ndf[,paste("max", f, sep="_")] <- max(s[,f])
+        ndf[,paste("min", f, sep="_")] <- min(s[,f])
+        ndf[,paste("avg", f, sep="_")] <- mean(s[,f])
+        ndf[,paste("var", f, sep="_")] <- var(s[,f])
       }
       sm[[length(sm) + 1]] = ndf
     }
@@ -96,49 +96,53 @@ create_sliding_window_summary_fn <- function(window_size, overlap) {
   })
 }
 
-z = list()
-for (x in seq(0.5, 5.0, 0.5)) {
-  for (overlap in seq(0, x - 0.5, 0.5)) {
-    print(paste("Proccessing window size", x, "overlap", overlap))
-    z[[paste("win", x, "overlap", overlap, sep = "-")]] <- 
-      rbind_all(dlply(training, 
-                      .(user_name, classe), 
-                      create_sliding_window_summary_fn(x, overlap)))
+window_configs = list()
+for (size in seq(0.5, 5.0, 0.5)) {
+  for (overlap in seq(0, size - 0.5, 0.5)) {
+    window_configs[[length(window_configs) + 1]] <- list(size=size, overlap=overlap)
   }
 }
+
+window_summaries = lapply(window_configs, function(config) {
+  print(paste("Proccessing window size", config$size, "overlap", config$overlap))
+  return(list(window=paste("win", config$size, "overlap", config$overlap, sep = "-"),
+              summaries=rbind_all(dlply(training, .(user_name, classe), create_sliding_window_summary_fn(size, overlap)))))
+})
 ```
 
 ```{r}
-fitControlRf <- trainControl(method = "cv", number = 10)
+fit_control_rf <- trainControl(method = "cv", number = 10)
 set.seed(94610348)
-fit_rf <- mclapply(seq_along(z), function(i) {
-  df <- z[[i]]
-  print(paste("Fitting rf", names(z)[[i]]))
+fit_rf <- mclapply(window_summaries, function(window_summary) {
+  window <- window_summary$window
+  summaries <- window_summary$summaries
+  print(paste("Fitting rf", window))
   return(list(fit=train(classe ~ .,
-                        data = df,
+                        data = summaries,
                         method = "rf",
-                        trControl = fitControlRf),
-              window=names(z)[[i]]))
+                        trControl = fit_control_rf),
+              window=window))
 }, mc.cores = 8)
 ```
 
 ```{r}
-fitControlNn <- trainControl(method = "cv", number = 10)
-my.grid <- expand.grid(.decay = c(0, 1e-4, 1e-1, 1), .size = c(15, 30, 50))
+fit_control_nn <- trainControl(method = "cv", number = 10)
+tune_grid_nn <- expand.grid(.decay = c(0, 1e-4, 1e-1, 1), .size = c(15, 30, 50))
 
 set.seed(10482349)
-fit_nn <- mclapply(seq_along(z), function(i) {
-  df <- z[[i]]
-  print(paste("Fitting nn", names(z)[[i]]))
+fit_nn <- mclapply(window_summaries, function(window_summary) {
+  window <- window_summary$window
+  summaries <- window_summary$summaries
+  print(paste("Fitting nn", window))
   return(list(fit=train(classe ~ ., 
-                        data = df, 
+                        data = summaries, 
                         method = "nnet", 
-                        trControl = fitControlNn, 
+                        trControl = fit_control_nn, 
                         trace = FALSE, 
-                        tuneGrid = my.grid,
+                        tuneGrid = tune_grid_nn,
                         MaxNWts = 10000,
                         preProcess = c("center", "scale", "pca")),
-              window=names(z)[[i]]))
+              window=window))
   }, mc.cores = 8)
 ```
 
