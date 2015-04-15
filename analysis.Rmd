@@ -151,15 +151,21 @@ accuracies <- data.frame(sapply(fit_rf, function(f) max(f$fit$results$Accuracy))
 accuracies$window <- sapply(fit_rf, function(f) f$window)
 names(accuracies)[[1]] <- "accuracy"
 
-ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-```
+g1 <- ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("random forest")
 
-```{r}
 accuracies <- data.frame(sapply(fit_nn, function(f) max(f$fit$results$Accuracy, na.rm = TRUE)))
 accuracies$window <- sapply(fit_rf, function(f) f$window)
 names(accuracies)[[1]] <- "accuracy"
 
-ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+g2 <- ggplot(accuracies, aes(window, accuracy)) + geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("neural network")
+
+grid.arrange(g1, g2, ncol = 1)
+```
+
+```{r}
+model_fit <- fit_rf[lapply(fit_rf, function(fit) fit$window == "win-2.0-overlap-1.5") == TRUE][[1]]$fit
 ```
