@@ -84,8 +84,12 @@ ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) +
 
 We see cyclic patterns as the person performs weight lifts.
 
+## Model Features
+
 Let's define a function that will responsible for extracting features that will
-be used in training. To start with, we will use all available features.
+be used in training. 
+
+To start with, we will use all available features for model training.
 
 ```{r}
 extract_features <- function(df) {
