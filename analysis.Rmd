@@ -60,11 +60,6 @@ carlitos_good_lifts.narrow$source <-
 
 carlitos_good_lifts.narrow$variable <- 
   gsub("_(belt|arm|dumbbell|forearm)", "", carlitos_good_lifts.narrow$variable)
-
-window_markers <- carlitos_good_lifts %>%
-  filter(new_window == "yes") %>%
-  mutate(raw_timestamp = ((raw_timestamp_part_1 - 1323084231) * 1000000 + raw_timestamp_part_2) / 1000000.0) %>%
-  select(raw_timestamp)
 ```
 
 
@@ -72,8 +67,7 @@ window_markers <- carlitos_good_lifts %>%
 ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) + 
   facet_wrap(~source, ncol = 1) +
   geom_line() + 
-  scale_x_continuous(breaks = 1:40) + 
-  geom_vline(data=window_markers, aes(xintercept=raw_timestamp), linetype="longdash", alpha = 0.3)
+  scale_x_continuous(breaks = 1:40)
 ```
 
 ```{r}
