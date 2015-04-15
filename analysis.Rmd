@@ -14,14 +14,22 @@ library(reshape2)
 library(doMC)
 ```
 
+Enable parallelization for training.
+
 ```{r}
 registerDoMC(cores = 4)
 ```
+
+Load the data.
 
 ```{r}
 training <- read.csv("pml-training.csv")
 testing <- read.csv("pml-testing.csv")
 ```
+
+## Data Visualization
+
+Extract a sample of the data for visualization.
 
 ```{r}
 carlitos_good_lifts <- training %>% 
@@ -67,12 +75,17 @@ carlitos_good_lifts.narrow$variable <-
 ```
 
 
-```{r}
+```{r, fig.width=10}
 ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) + 
   facet_wrap(~source, ncol = 1) +
   geom_line() + 
   scale_x_continuous(breaks = 1:40)
 ```
+
+We see cyclic patterns as the person performs weight lifts.
+
+Let's define a function that will responsible for extracting features that will
+be used in training. To start with, we will use all available features.
 
 ```{r}
 extract_features <- function(df) {
@@ -86,7 +99,9 @@ extract_features <- function(df) {
 }
 ```
 
-```{r, cache=TRUE}
+## Random Forest Model
+
+```{r train_rf_model, cache=TRUE}
 fit_control_rf <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 set.seed(94610348)
 fit_rf <- train(classe ~ .,
@@ -95,7 +110,22 @@ fit_rf <- train(classe ~ .,
                 trControl = fit_control_rf)
 ```
 
-```{r, cache=TRUE}
+Let's take a peek at the results.
+
+```{r}
+fit_rf$results
+```
+
+This model has 99.5% accuraccy. The model is performant and accurate enough
+that there's no need to cherry pick features.
+
+## Neural Network Model
+
+Increase the number of hidden units to provide a better fit. 
+Apply PCA to the data to reduce the number of features to make the computations 
+feasable.
+
+```{r train_nn_model, cache=TRUE}
 fit_control_nn <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 tune_grid_nn <- expand.grid(.decay = c(0), .size = c(200))
 
@@ -110,7 +140,20 @@ fit_nn <- train(classe ~ .,
                 preProcess = c("center", "scale", "pca"))
 ```
 
-```{r, cache=TRUE}
+Neural network results.
+
+```{r}
+fit_nn$results
+fit_nn$finalModel
+```
+
+We are able to achieve 98.67% accurracy using 25 features.
+
+## Support Vector Machine Model
+
+Try different values of the regularization parameter C.
+
+```{r train_svm_model, cache=TRUE}
 fit_control_svm <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 tune_grid_svm <- expand.grid(.sigma = 0.01263598, .C = c(1, 10, 100))
 
@@ -124,7 +167,19 @@ fit_svm <- train(classe ~ .,
                 preProcess = c("center", "scale"))
 ```
 
-```{r, cache=TRUE}
+How are the SVM results?
+
+```{r}
+fit_svm$results
+```
+
+Accurracy is 99.49%.
+
+## Combined Model
+
+Let's train a random forest model that combines all the three models.
+
+```{r train_combined_model, cache=TRUE}
 predict_rf <- predict(fit_rf, newdata=training)
 predict_nn <- predict(fit_nn, newdata=training)
 predict_svm <- predict(fit_svm, newdata=training)
@@ -136,6 +191,19 @@ fit_combined <- train(classe ~ ., data = training_combined, method = "rf")
 
 ```
 
+On how many examples do all three models agree? At least two?
+
+```{r}
+sum((predict_rf == predict_nn) & (predict_nn == predict_svm)) / nrow(training)
+sum((predict_rf == predict_nn) | 
+      (predict_nn == predict_svm) | 
+      (predict_rf == predict_svm)) / nrow(training)
+```
+
+## Final Predictions
+
+Make predictions on the test data.
+
 ```{r}
 test_predict_rf <- predict(fit_rf, newdata=testing)
 test_predict_nn <- predict(fit_nn, newdata=testing)
@@ -145,6 +213,16 @@ testing_combined <- data.frame(classe_rf=test_predict_rf,
                                classe_svm=test_predict_svm)
 predict_final <- predict(fit_combined, newdata=testing_combined)
 ```
+
+On what percentage of test data to the models agree on?
+
+```{r}
+sum((test_predict_rf == test_predict_nn) & 
+      (test_predict_nn == test_predict_svm)) / nrow(testing)
+```
+
+The models agree on all the test examples.
+Write out the predictions to files.
 
 ```{r}
 pml_write_files = function(x){
