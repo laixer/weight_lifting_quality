@@ -12,6 +12,9 @@ library(gridExtra)
 library(parallel)
 library(reshape2)
 library(doMC)
+```
+
+```{r}
 registerDoMC(cores = 4)
 ```
 
@@ -23,7 +26,8 @@ testing <- read.csv("pml-testing.csv")
 ```{r}
 carlitos_good_lifts <- training %>% 
   filter(user_name == "carlitos" & classe == "A") %>%
-  mutate(raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 1000000 + raw_timestamp_part_2) / 1000000.0)
+  mutate(raw_timestamp = ((raw_timestamp_part_1 - min(raw_timestamp_part_1)) * 
+                            1000000 + raw_timestamp_part_2) / 1000000.0)
 
 belt_features <- c("roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt",
                    "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", 
@@ -53,10 +57,10 @@ carlitos_good_lifts.narrow <- melt(carlitos_good_lifts,
                                                     forearm_features))
 carlitos_good_lifts.narrow$source <- 
   ifelse(carlitos_good_lifts.narrow$variable %in% belt_features, "belt", 
-         ifelse(carlitos_good_lifts.narrow$variable %in% arm_features, "arm",
-                ifelse(carlitos_good_lifts.narrow$variable %in% dumbbell_features, "dumbbell",
-                       ifelse(carlitos_good_lifts.narrow$variable %in% forearm_features, "forearm", 
-                              "UNKNOWN"))))
+  ifelse(carlitos_good_lifts.narrow$variable %in% arm_features, "arm",
+  ifelse(carlitos_good_lifts.narrow$variable %in% dumbbell_features, "dumbbell",
+  ifelse(carlitos_good_lifts.narrow$variable %in% forearm_features, "forearm", 
+         "UNKNOWN"))))
 
 carlitos_good_lifts.narrow$variable <- 
   gsub("_(belt|arm|dumbbell|forearm)", "", carlitos_good_lifts.narrow$variable)
@@ -72,32 +76,26 @@ ggplot(carlitos_good_lifts.narrow,  aes(raw_timestamp, value, color=variable)) +
 
 ```{r}
 extract_features <- function(df) {
-  return(select(df, one_of("classe", "user_name", belt_features, arm_features, dumbbell_features, forearm_features)))
+  return(select(df, one_of(
+    "classe", 
+    "user_name", 
+    belt_features, 
+    arm_features, 
+    dumbbell_features, 
+    forearm_features)))
 }
+```
 
-# TODO(laixer): Does the data need to be shuffled?
+```{r, cache=TRUE}
 fit_control_rf <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 set.seed(94610348)
 fit_rf <- train(classe ~ .,
                 data = extract_features(training),
                 method = "rf",
                 trControl = fit_control_rf)
-
-# all basic features
-#   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
-#    2    0.9951583  0.9938754  0.001447289  0.001831010
-#   27    0.9950565  0.9937465  0.002094801  0.002650455
-#   52    0.9893996  0.9865899  0.002694160  0.003408644
-#
-# all basic features + user_name
-#  mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
-#   2    0.9945976  0.9931661  0.001426535  0.001804788
-#  29    0.9949036  0.9935531  0.002461376  0.003114203
-#  57    0.9895016  0.9867185  0.002992332  0.003786093
-
 ```
 
-```{r}
+```{r, cache=TRUE}
 fit_control_nn <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 tune_grid_nn <- expand.grid(.decay = c(0), .size = c(200))
 
@@ -110,29 +108,13 @@ fit_nn <- train(classe ~ .,
                 tuneGrid = tune_grid_nn,
                 MaxNWts = 10000,
                 preProcess = c("center", "scale", "pca"))
-# all basic features + user_name
-#   size  decay  Accuracy   Kappa      Accuracy SD  Kappa SD  
-#   1     0e+00  0.3649976  0.1738136  0.02360002   0.02413697
-#   1     1e-04  0.3494004  0.1626049  0.01864389   0.01251200
-#   1     1e-01  0.3611257  0.1774195  0.02013515   0.01393788
-#   3     0e+00  0.5228688  0.3947108  0.04022309   0.05364542
-#   3     1e-04  0.4992878  0.3660884  0.02990224   0.03457736
-#   3     1e-01  0.5129959  0.3828822  0.03287314   0.04498382
-#   5     0e+00  0.5794025  0.4665667  0.01818793   0.02559333
-#   5     1e-04  0.5822578  0.4715057  0.02330148   0.03035747
-#   5     1e-01  0.5939829  0.4842045  0.02685523   0.03507407
-# all basic features + user_name
-#   size  Accuracy   Kappa      Accuracy SD  Kappa SD  
-#    5    0.5804702  0.4677960  0.019511354  0.02534310
-#   15    0.7915130  0.7362199  0.022973729  0.02918866
-#   30    0.8874728  0.8576602  0.009834545  0.01244672
 ```
 
-```{r}
+```{r, cache=TRUE}
 fit_control_svm <- trainControl(method = "cv", number = 10, verboseIter = TRUE)
 tune_grid_svm <- expand.grid(.sigma = 0.01263598, .C = c(1, 10, 100))
 
-set.seed(10482349)
+set.seed(8401650)
 fit_svm <- train(classe ~ ., 
                 data = extract_features(training), 
                 method = "svmRadial", 
@@ -142,27 +124,26 @@ fit_svm <- train(classe ~ .,
                 preProcess = c("center", "scale"))
 ```
 
-```{r}
+```{r, cache=TRUE}
 predict_rf <- predict(fit_rf, newdata=training)
 predict_nn <- predict(fit_nn, newdata=training)
 predict_svm <- predict(fit_svm, newdata=training)
-combined_training <- data.frame(classe=training$classe, 
+training_combined <- data.frame(classe=training$classe, 
                                 classe_rf=predict_rf,
                                 classe_nn=predict_nn,
                                 classe_svm=predict_svm)
-combined_fit <- train(classe ~ ., data = combined_training, method = "rf")
+fit_combined <- train(classe ~ ., data = training_combined, method = "rf")
 
 ```
 
 ```{r}
-testing$classe = "U"
 test_predict_rf <- predict(fit_rf, newdata=testing)
 test_predict_nn <- predict(fit_nn, newdata=testing)
 test_predict_svm <- predict(fit_svm, newdata=testing)
-combined_test <- data.frame(classe_rf=test_predict_rf,
-                            classe_nn=test_predict_nn,
-                            classe_svm=test_predict_svm)
-predict_final <- predict(combined_fit, newdata=combined_test)
+testing_combined <- data.frame(classe_rf=test_predict_rf,
+                               classe_nn=test_predict_nn,
+                               classe_svm=test_predict_svm)
+predict_final <- predict(fit_combined, newdata=testing_combined)
 ```
 
 ```{r}
